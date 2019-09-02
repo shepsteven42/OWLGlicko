@@ -25,15 +25,15 @@ parser.add_argument("--score", action="store_true",
 parser.add_argument("-c", "--crosstable", action="store_true",
 	help="Generate expected outcomes in each maptype. Outputs to Crosstable.csv.")
 parser.add_argument("-t", "--timeline", action="store_true",
-	help="Generate rating history, taken every 10 maps played. Outputs to Timeline.csv.")
+	help="Generate rating history, taken at the end of every rating period. Outputs to Timeline.csv.")
 parser.add_argument("-p", "--periods", type=period_range, default=25, metavar='PERIOD',
-	help="Split the season into P rating periods.")
+	help="Split the season into P rating periods. Default=25")
 parser.add_argument("-r", "--rating", type=float, default=1500, metavar='RATING',
 	help="Set the starting rating for each player. Default=1500")
 parser.add_argument("-d", "--deviation", type=float, default=400, metavar='DEV',
-	help="Set the starting rating deviation for each player. Default=350")
+	help="Set the starting rating deviation for each player. Default=400")
 parser.add_argument("-v", "--volatility", type=float, default=0.08, metavar='VOL',
-	help="Set the starting volatility for each player. Default=0.03")
+	help="Set the starting volatility for each player. Default=0.08")
 
 args = parser.parse_args()
 
@@ -176,6 +176,7 @@ def update_mapfile():
 	print("MapFile update complete.")
 	print()
 
+# Converts match data from Maplist.csv into Glicko-usable form
 def get_matches(mapfile="MapList.csv"):
 	contents = url.urlopen("https://api.overwatchleague.com/maps").read()
 	maps = json.loads(contents)
@@ -205,6 +206,7 @@ def get_matches(mapfile="MapList.csv"):
 				result.append([V, H, maptype, outcome])
 	return result
 
+# Uses Glicko ratings to generate head-to-head expected outcomes
 def crosstable_predictions(teams, maptypes, outfile="Crosstable.csv"):
 	draw_odds = {
 		"control":	0.00,
@@ -242,7 +244,8 @@ def crosstable_predictions(teams, maptypes, outfile="Crosstable.csv"):
 					# print("  ", t1, t2, p2)
 					out.write(csvstring + str(p1) + "," + str(p2) + "\n")
 
-def rating_pool(games, rating=args.rating, rd = args.deviation, vol = args.volatility, period=args.periods, randomizer = False, tau=0.8):
+# Assigns ratings to each team based on the games specified
+def rating_pool(games, rating=args.rating, rd = args.deviation, vol = args.volatility, period=args.periods, randomizer = args.random, tau=0.8):
 	teams = {}
 	for t in team_names:
 		teams.update({t:{}})
@@ -263,9 +266,7 @@ def rating_pool(games, rating=args.rating, rd = args.deviation, vol = args.volat
 		random.shuffle(games)
 
 	period_size = round(len(games)/period)
-	#print("Period size:", period_size)
 	num_periods = period
-	#print("Period count:", num_periods)
 	ranges = []
 	for i in range(int(num_periods)):
 		r = [i * period_size, (i+1)*period_size]
@@ -274,9 +275,8 @@ def rating_pool(games, rating=args.rating, rd = args.deviation, vol = args.volat
 			ranges.append(r)
 			break
 		ranges.append(r)
-	rcount = 1
+
 	for r in ranges:
-		#print(rcount)
 		gameset = games[r[0]:r[1]]
 		to_update = {}
 		for t in teams:
@@ -289,8 +289,6 @@ def rating_pool(games, rating=args.rating, rd = args.deviation, vol = args.volat
 			t2 = g[1]
 			mt = g[2]
 			oc = g[3]
-			# if t1 == "HZS" or t2 == "HZS":
-			# 	print(g)
 
 			to_update[t1][mt]["ratings"] 	+= [teams[t2][mt].rating]
 			to_update[t1][mt]["rds"] 		+= [teams[t2][mt].rd]
@@ -301,9 +299,8 @@ def rating_pool(games, rating=args.rating, rd = args.deviation, vol = args.volat
 
 			expected = teams[t1][mt].expected_outcome(teams[t2][mt].rating, teams[t2][mt].rd)
 			s = (round(expected) * oc + round(1-expected)*(1-oc))
-			score[mt] += s * rcount
-			count[mt] += rcount
-			#print(round(expected), s, oc)
+			score[mt] += s
+			count[mt] += 1
 
 			mt = "all"
 			to_update[t1][mt]["ratings"] 	+= [teams[t2][mt].rating]
@@ -315,50 +312,31 @@ def rating_pool(games, rating=args.rating, rd = args.deviation, vol = args.volat
 
 			expected = teams[t1][mt].expected_outcome(teams[t2][mt].rating, teams[t2][mt].rd)
 			s = (round(expected) * oc + round(1-expected)*(1-oc))
-			score[mt] += s * rcount
-			count[mt] += rcount
+			score[mt] += s
+			count[mt] += 1
 		for t in teams:
 			for m in maptypes:
 				if len(to_update[t][m]["ratings"]) > 0:
 					teams[t][m].update_player(to_update[t][m]["ratings"],to_update[t][m]["rds"],to_update[t][m]["outcomes"])
 				else:
 					teams[t][m].did_not_compete()
-		#rcount += 1/num_periods
+		if args.timeline:
+			for team in teams:
+				for m in maptypes:
+					elo_over_time[team][m].append(teams[team][m].rating)
 
 	if args.timeline:
 		for team in teams:
-			for m in teams[team]:
+			for m in maptypes:
 				elo_over_time[team][m].append(teams[team][m].rating)
-	
-	
-	for g in games:
-		t1 = g[0]
-		t2 = g[1]
-		mt = g[2]
-		oc = g[3]
-		expected = teams[t1][mt].expected_outcome(teams[t2][mt].rating, teams[t2][mt].rd)
-		s = expected * oc + (1-expected)*(1-oc)
-		score2[mt] += s
-
-		mt = "all"
-		expected = teams[t1][mt].expected_outcome(teams[t2][mt].rating, teams[t2][mt].rd)
-		s = expected * oc + (1-expected)*(1-oc)
-		score2[mt] += s
 	
 	for m in score:
 		score[m] /= count[m]
-	for m in score2:
-		score2[m] /= count[m]
-		#print(m, score2[m])
-	# for m in maptypes:
-	# 	for t in teams:
-	# 		print(t, m, teams[t][m].rating, teams[t][m].rd, teams[t][m].vol)
+
 	return teams, elo_over_time, score
 
 def main():
 	
-	#print(args)
-
 	if args.update:
 		update_mapfile()
 	elif not(os.path.exists("MapList.csv")):
@@ -366,7 +344,7 @@ def main():
 		update_mapfile()
 
 	print(" Initializing rating system with parameters:")
-	print(" ", args.rating, args.deviation, args.volatility)
+	print("", args.rating, args.deviation, args.volatility, args.periods)
 
 	games = get_matches("MapList.csv")
 	if args.random:
@@ -375,7 +353,7 @@ def main():
 		elo_over_time_list = []
 		score_list = []
 		for i in range(randCount):
-			t, eot, s = rating_pool(games, randomizer=args.random, period=args.periods)
+			t, eot, s = rating_pool(games)
 			teams_list.append(t)
 			elo_over_time_list.append(eot)
 			score_list.append(s)
@@ -401,11 +379,11 @@ def main():
 
 	else:
 		print(" Rating " + str(len(games)) + " games...")
-		teams, elo_over_time, score = rating_pool(games, randomizer=args.random, period=args.periods)
+		teams, elo_over_time, score = rating_pool(games)
 
-	print(" scores:")
-	for m in maptypes:
-		print("",round(score[m], 3))
+	# print(" scores:")
+	# for m in maptypes:
+	# 	print("",round(score[m], 3))
 	with open("Ratings.csv", "w") as outfile:
 		csvstring = "Team" + ","
 		for m in maptypes:
@@ -485,7 +463,4 @@ def testparams():
 				csvstring+= str(k) + ","
 			outfile.write(csvstring+ "\n")
 
-
 main()
-
-#testparams()

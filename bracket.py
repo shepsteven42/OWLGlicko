@@ -18,6 +18,7 @@ parser.add_argument("-s", "--seed", action="store_true",
 
 args = parser.parse_args()
 
+# Generates all possible brackets given the initial bracket specified
 def get_seeds(b = []):
 	q = [b]
 	result = []
@@ -30,6 +31,7 @@ def get_seeds(b = []):
 		q.append(bi + [1])
 	return result
 
+# Pulls head-to-head expected outcomes from Crosstable.csv
 def get_probs(file="Crosstable.csv"):
 	if not os.path.exists(file):
 		raise NameError("'Crosstable.csv' not found. Run 'OWLGLicko.py -c' first.")
@@ -49,6 +51,7 @@ def get_probs(file="Crosstable.csv"):
 
 probs = get_probs()
 
+# Generate probabilities for every possible bracket variation
 def simulate_seeded(seed = []):
 	seeds = get_seeds(seed)	
 	print("  All child seeds computed. Running", "2^"+str(18 - len(seed)), "simulations...")	
@@ -126,6 +129,7 @@ def simulate_seeded(seed = []):
 
 	print("Writing results to 'Placings.csv'...")
 
+# Structure of 2 teams, up to 2 child matches, and the specified outcome of the match
 class Match:
 	def __init__(self, outcome, team1=None, team2=None, child1 = (None, 0), child2 = (None, 0)):
 		self.team1 = team1
@@ -155,7 +159,7 @@ class Match:
 		self.set_child(1, c1)
 		self.set_child(2, c2)
 
-	#returns probability team1 will win against team2
+	# Returns probability team1 will win against team2
 	def prob(self):
 		t1 = self.team1
 		t2 = self.team2
@@ -178,11 +182,6 @@ class Match:
 			return None
 
 	def update(self):
-		# if self.child1[0] != None:
-		# 	self.child1[0].update()
-		# if self.child2[0] != None:
-		# 	self.child2[0].update()
-
 		t1 = self.get_team_child(1)
 		t2 = self.get_team_child(2)
 		if t1 != None:
@@ -206,6 +205,7 @@ class Match:
 
 	def teams(self):
 		return [self.team1, self.team2]
+	
 	def winner(self):
 		if self.outcome == 1:
 			return self.team1
@@ -213,6 +213,7 @@ class Match:
 			return self.team2
 		else:
 			return None
+	
 	def loser(self):
 		if self.outcome == -1:
 			return self.team1
@@ -220,12 +221,14 @@ class Match:
 			return self.team2
 		else:
 			return None
+	
 	def print(self):
 		print(self.teams())
 		print(self.prob())
 		print(self.winner())
 		print()
 
+# Structure of Matches for a while Playoff Bracket
 class Bracket:
 	def __init__(self, seed):
 		self.matches = []
@@ -264,7 +267,7 @@ class Bracket:
 		self.matches[2].update()
 		self.matches[3].update()
 		
-		# PLAYOFFS RD1
+		# PLAYOFFS
 		self.matches[4].set_team(1, "VAN")
 		self.matches[5].set_teams("HZS", "GLA")
 		self.matches[6].set_team(1, "NYE")   
@@ -295,6 +298,7 @@ class Bracket:
 			self.matches[i].outcome = seed[i]
 		self.update()
 	
+	# Joint probability of all Match outcomes
 	def eval(self):
 		r = 1
 		for m in self.matches:
