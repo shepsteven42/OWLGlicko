@@ -43,6 +43,7 @@ Simulates playoff brackets for the 2019 season, outputs likelihood of each team 
 usage: bracket.py [-h] [-a A] [-s]
 
 optional arguments:
+  
   -h, --help       show this help message and exit
 
   -a A, --alpha A  Default 0. Factor to bias match outcome probabilities from
