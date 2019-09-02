@@ -3,7 +3,7 @@ import json
 import urllib.request as url
 import os
 import csv
-from glicko2 import glicko2
+import MyGlicko as glicko2
 from statistics import mean
 import random
 from outcomes import calc_prob_win_ft4, get_wins_ft4, calc_prob_win_rs, get_wins_rs
