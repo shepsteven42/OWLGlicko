@@ -6,7 +6,8 @@ usage: OWLGlicko.py [-h] [-u] [--random] [--score] [-c] [-t] [-p PERIOD]
                     [-r RATING] [-d DEV] [-v VOL]
 
 optional arguments:
-  -h, --help | show this help message and exit
+  
+  -h, --help            show this help message and exit
   
   -u, --update          Update match data from api.overwatchleague.com
   
